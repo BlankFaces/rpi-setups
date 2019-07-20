@@ -1,0 +1,113 @@
+sudo apt-get install apache2 mysql-server phpmyadmin 
+sudo apt-get install php7.0-intl php-apcu redis-server php-redis
+sudo service apache2 restart
+# https://owncloud.org/download/#owncloud-server-tar-ball
+wget https://download.owncloud.org/community/owncloud-10.0.7.zip
+
+sudo mv owncloud-10.0.7.zip /var/www/html
+cd /var/www/html
+sudo unzip -q owncloud-10.0.7.zip
+
+sudo mkdir /var/www/html/owncloud/data
+sudo chown www-data:www-data /var/www/html/owncloud/data
+sudo chmod 750 /var/www/html/owncloud/data
+
+sudo reboot
+
+continue from where you were on the guide then do this:
+sudo mysql -u root
+
+CREATE USER 'master'@'localhost' IDENTIFIED BY 'password';
+GRANT ALL PRIVILEGES ON *.* TO 'master'@'localhost';
+grant all privileges on *.* to master@localhost identified by 'BlyatMan' with grant option;
+SET PASSWORD FOR 'master'@'localhost' = PASSWORD('BlyatMan2001!?');
+CREATE DATABASE owncloud;
+FLUSH PRIVILEGES;
+
+crontab -u www-data -e
+*/15  *  *  *  * php -f /var/www/html/owncloud/cron.php
+
+sudo nano /etc/php/7.0/apache2/php.ini
+
+upload_max_filesize = 100M
+post_max_size = 150M
+
+cd /etc/apache2
+sudo nano apache2.conf
+
+edit
+<Directory /var/www/>
+        Options Indexes FollowSymLinks
+        AllowOverride None
+        Require all granted
+</Directory>
+
+<Directory /var/www/>
+        Options Indexes FollowSymLinks
+        AllowOverride All
+        Require all granted
+</Directory>
+
+To add rpimonitor
+
+sudo apt-get install dirmngr
+sudo apt-key adv --recv-keys --keyserver keyserver.ubuntu.com 2C0D3C0F
+sudo wget http://goo.gl/vewCLL -O /etc/apt/sources.list.d/rpimonitor.list
+sudo apt-get update
+sudo apt-get install rpimonitor
+
+cd /etc/rpimonitor/
+nano daemon.conf:
+daemon.port=1737
+daemon.webroot=/var/www/html/rpimonitor/
+sudo /etc/init.d/rpimonitor install_auto_package_status_update
+sudo ufw allow from 192.168.0.28 proto tcp to any port 1737
+
+sudo /etc/init.d/rpimonitor restart
+
+# The start of Jekyll
+download https://gist.github.com/blacktm/8302741
+sudo chmod +x ./ruby.sh
+./ruby (as pi)
+
+sudo apt-get install ruby-dev
+sudo chown -R pi:pi /var/www/html/blog/
+
+to update ruby gems
+gem install rubygems-update
+update_rubygems
+gem update --system
+
+gem install jekyll bundler
+git clone https://github.com/melangue/dactl.git
+mv dactl BLANK-Blog
+
+sudo ufw allow from 192.168.0.28 proto tcp to any port 1337
+
+nano start.sh:
+
+##/bin/bash
+bundler exec jekyll serve -H 0.0.0.0 -P 1337 --watch --quiet &
+
+EOF
+
+sudo nano /etc/rc.local:
+
+bash /home/pi/BLANK-Blog/start.sh &
+
+exit 0
+
+EOF
+
+cp _posts oldposts
+
+cd ../_includes/main
+nano head.html
+add this: <link rel="icon" href="/icon.png" type="image/x-icon"/>
+
+upload the ocon and move it to root of server
+cp /var/www/html/css/icon.png ~/BLANK-Blog/
+
+download the website from here and put it in root dir
+
+And start the blog from there, look over the documentation for the markdown headers for jekyll.

@@ -1,0 +1,48 @@
+@import url('https://fonts.googleapis.com/css?family=Raleway');
+
+.center {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  /* bring your own prefixes */
+  transform: translate(-50%, -50%);
+  text-align: center;
+}
+
+.thicc {
+    font-weight: 900;
+    letter-spacing: 8px;
+}
+
+body {
+    background-color: #212121;
+}
+
+span {
+    color: #E0E0E0;
+    font-family: 'Raleway', sans-serif;
+}
+
+a:link    {
+  /* Applies to all unvisited links */
+  text-decoration:  none;
+  color:            #E0E0E0;
+  }
+ 
+a:visited {
+  /* Applies to all visited links */
+  text-decoration:  none;
+  color:            #E0E0E0;
+  } 
+
+a:hover   {
+  /* Applies to links under the pointer */
+  text-decoration:  underline;
+  color:            #9E9E9E;
+  } 
+
+a:active  {
+  /* Applies to activated links */
+  text-decoration:  underline;
+  color: #E0E0E0;
+  }

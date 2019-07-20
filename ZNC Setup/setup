@@ -1,0 +1,159 @@
+# Credit to fur for some help with finding some instilations
+# Use this if you want to use key instead of password for ssh ^
+# Sorry, I kind of stole the majority of this and edited it :p
+# 1. burn iso to sd
+# 2. create a file called ssh on the pi's boot parition to enable ssh
+
+sudo raspi-config
+# 3. enable ssh, force audio output to hdmi, and expand file system , and wait until network on boot options
+
+# ssh into the pi
+
+sudo su # woot woot! got root!
+
+passwd pi
+
+# 4. but do change the local password.
+
+Generate Pub and Private keys. Add a password aswell.
+put pub key from text box (remember :( ) at /home/pi/.ssh/authorized_keys
+nano /etc/ssh/sshd_config
+
+edit and disable passwordauth and enable AuthorizedKeysFile
+add pi into data, and add the ppk file into the ssh auth file.
+
+apt-get update && apt-get -y upgrade
+apt-get install -y unattended-upgrades && dpkg-reconfigure -plow unattended-upgrades 
+echo 'Unattended-Upgrade::Automatic-Reboot "true";' >> /etc/apt/apt.conf.d/50unattended-upgrades
+apt-get install -y clamtk rkhunter fail2ban git firejail ufw knockd macchanger #select yes option for macchanger.
+# 5. automatic upgrades, now with automatic system reboots for kernel upgrades 'n' stuff
+
+tee /etc/apt/apt.conf.d/20auto-upgrades > /dev/null <<EOF
+APT::Periodic::Update-Package-Lists "1";
+APT::Periodic::Unattended-Upgrade "1";
+EOF
+
+#fail2ban
+cp /etc/fail2ban/jail.conf /etc/fail2ban/jail.conf.bak
+# 6. 6 months = 15552000 s
+nano /etc/fail2ban/jail.conf
+
+sender = alert@fail2ban.com
+destemail = root@localhost
+action = %(action_mwl)s
+
+#firewall
+ufw allow OpenSSH
+ufw allow ZNC PORT
+ufw allow 80
+ufw enable
+
+# 7. ufw denys all incoming by default, so we don't need to do that ourselves
+sudo iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+ufw delete allow openssh 
+
+# 8. block openssh by default, if we've allowed it, otherwise it'll be blocked anyway
+/etc/knockd.conf:
+[options]
+    UseSyslog
+    interface = wlan0
+[SSH]
+    sequence = 5438:udp,3428:udp,3280:udp,4479:udp
+    tcpflags = syn
+    seq_timeout = 15
+    start_command = iptables -A INPUT -s %IP% -p tcp --dport 22 -j ACCEPT
+    cmd_timeout = 10
+    stop_command =  iptables -D INPUT -s %IP% -p tcp --dport 22 -j ACCEPT
+
+knockd --verbose -D
+# 9. on laptop/desktop/whatever:
+#  run knock.exe SERVER_IP 5438 3428 3280 4479 & check knockd's output; should have "SSH: OPEN SESAME" 
+#  and "SSH: running command: /sbin/iptables blahblahblah" (using telnet/nmap didn't work for me, seq_timeout too low?)
+#  ssh pi@SERVER_IP to make sure all's good in the hood
+
+# 10. Edit knock default
+sed -i 's/START_KNOCKD=0/START_KNOCKD=1/' /etc/default/knockd
+sed -i 's/#KNOCKD_OPTS="-i eth0"/KNOCKD_OPTS="-i wlan0"/' /etc/default/knockd
+service knockd start
+
+# Autostart:
+
+cd /home/pi/
+mkdir startup
+cd startup
+nano firewall.sh
+firewall.sh:
+    #!/bin/bash
+    sudo /etc/init.d/knockd start &
+    firejail proxychains znc &
+sudo chmod +x /home/pi/startup/firewall.sh
+sudo nano /etc/rc.local
+/etc/rc.local:
+    #!/bin/sh -e
+    #
+    # rc.local
+    #
+    # This script is executed at the end of each multiuser runlevel.
+    # Make sure that the script will "exit 0" on success or any other
+    # value on error.
+    #
+    # In order to enable or disable this script just change the execution
+    # bits.
+    #
+    # By default this script does nothing.
+
+    # Print the IP address
+    _IP=$(hostname -I) || true
+    if [ "$_IP" ]; then
+        printf "My IP address is %s\n" "$_IP"
+    fi
+
+    /home/pi/startup/firewall.sh &
+
+    exit 0
+
+sudo chmod +x /etc/rc.local
+sudo chmod 755 /etc/rc.local
+
+#11. 
+
+sudo apt install tor proxychains && sudo systemctl enable --now tor
+then run proxychains ./znc instead of ./znc
+
+install znc
+apt-get install -y znc 
+znc -c
+#configure it
+sudo fuser port/tcp
+sudo kill -9 PID
+firejail proxychains znc
+
+# 12. install node.js, npm and packages for rpi 3
+sudo curl -sL https://deb.nodesource.com/setup_9.x | sudo -E bash -
+sudo apt-get install -y nodejs
+sudo npm install -g shout
+sudo npm install -g cloudcmd
+
+#For rpi0 do dis
+cd ~ && wget https://nodejs.org/dist/v9.9.0/node-v9.9.0-linux-armv6l.tar.gz
+cd /usr/local && sudo tar xzvf ~/node-v9.9.0-linux-armv6l.tar.gz --strip=1
+node -v
+
+# 13. start cloud cmd, then change settings on webserv
+mkdir ExternalFiles
+nano EF
+~/EF
+    mount -t cifs //192.168.0.16/server ExternalFiles -o user=user  
+sudo cloudcmd --port 80
+#configure it as Samba Server thingy
+sudo fuser 80/tcp
+sudo kill -9 PID
+
+# 14. config shout
+sudo shout add User
+sudo nano /usr/lib/node_modules/shout/defaults/config.js
+sudo su
+cp /usr/lib/node_modules/shout/defaults/config.js ~/.shout/
+sudo shout start --private
+
+# Finally, I hate knockd!

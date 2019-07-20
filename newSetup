@@ -1,0 +1,132 @@
+# Rapbarian Install
+Write OS to the sd card
+Add files from "Downloads\USB Gadget Mode\" to the sd card
+Depending on the network, add the "wpa_supplicant.conf" to the boot aswell
+
+# Expand file system , and wait until network on boot options
+# Change pass as well
+sudo raspi-config
+
+mkdir .ssh
+chmod 700 ~/.ssh
+chmod go-w ~
+cd .ssh
+
+# Generate Pub and Private keys. Add a password aswell.
+# Add the ppk to auth and save it
+# Put pub key from text box (remember :( )
+touch authorized_keys
+echo "key" >> authorized_keys
+
+# Changes default port
+sudo sed -ri 's/#?Port 22/Port 3121/' /etc/ssh/sshd_config
+
+apt-get update && apt-get -y upgrade
+
+# Auto update
+sudo su
+apt-get install -y unattended-upgrades && sudo dpkg-reconfigure -plow unattended-upgrades 
+echo 'Unattended-Upgrade::Automatic-Reboot "true";' >> /etc/apt/apt.conf.d/50unattended-upgrades
+# If it doesn't work, create a cron job weekly, and reboot it in the script.
+
+# Install programs needed
+#select yes option for macchanger.
+apt-get install -y fail2ban git firejail ufw tor jq #clamtk rkhunter macchanger 
+systemctl enable --now tor
+
+# Fail2ban conf
+cp /etc/fail2ban/jail.conf /etc/fail2ban/jail.conf.bak
+sudo sed -ri 's/bantime  = 600/bantime  = 15552000/' /etc/fail2ban/jail.conf
+sudo sed -ri 's/maxretry = 5/maxretry = 3/' /etc/fail2ban/jail.conf
+
+# Firewall conf
+ufw allow 3333
+ufw allow 3121
+ufw allow 443
+ufw enable
+iptables -t nat -A PREROUTING -p tcp --dport 443 -j REDIRECT --to-port 3333
+iptables -t nat -A PREROUTING -p tcp --dport 80 -j REDIRECT --to-port 3333
+exit
+
+#Set up node, and install thelounge
+cd ~ && wget https://nodejs.org/dist/v9.9.0/node-v9.9.0-linux-armv6l.tar.gz
+cd /usr/local && sudo tar xzvf ~/node-v9.9.0-linux-armv6l.tar.gz --strip=1
+sudo npm cache clean -f
+sudo npm install -g n
+sudo n stable
+node -v
+sudo npm i npm@latest -g
+npm install --global --unsafe-perm thelounge #if no work goto its website
+
+# Proxychains
+git clone https://github.com/rofl0r/proxychains-ng.git
+cd proxychains-ng
+# configure and install 
+./configure --prefix=/usr --sysconfdir=/etc
+make
+sudo make install
+sudo make install-config # installs /etc/proxychains.conf
+
+# Config thelounge
+cd ~
+firejail proxychains4 thelounge start
+thelounge add [user]
+thelounge install thelounge-theme-zenburn
+
+# Create https files
+cd .thelounge
+cp config.js config.bkp
+mkdir ssl
+cd ssl
+openssl genrsa 1024 > key.pem
+openssl req -x509 -new -key key.pem > key-cert.pem
+
+nano ~/.thelounge/config.js
+
+sudo apt install znc -y
+#enable cert for freenode
+#enable sasl for freenode
+
+openssl req -x509 -sha256 -nodes -days 1200 -newkey rsa:4096 -out user.pem -keyout user.pem
+openssl x509 -sha1 -noout -fingerprint -in user.pem | sed -e 's/^.*=//;s/://g;y/ABCDEF/abcdef/'
+
+#/msg NickServ CERT ADD output from above
+
+cp user.pem /.znc/users/Ethan/networks/freenode/moddata/cert/user.pem
+
+thelounge start
+# Select zenburn theme
+
+touch autoup
+echo "#!/bin/bash" >> autoup
+echo "pushbullet push chrome note "RPi 0 Status" "Update started"" >> autoup
+echo "apt-get update" >> autoup
+echo "apt-get upgrade -y" >> autoup
+echo "apt-get autoclean" >> autoup
+echo "npm cache clean -f" >> autoup
+echo "npm install -g n" >> autoup
+echo "n stable" >> autoup
+echo "node -v" >> autoup
+echo "npm i npm@latest -g" >> autoup
+echo "pushbullet push chrome note Update "RPi 0 Status" "Update Ended"" >> autoup
+
+# Add it to run on boot
+sudo su
+chmod +x /home/pi/startup/start.sh
+sed -ri 's/exit 0//' /etc/rc.local
+echo "pushbullet push chrome note "RPi 0 Status" "RPi 0 Online"" >> /etc/rc.local
+echo "exec 2> /tmp/rc.local.log" >> /etc/rc.local
+echo "exec 1>&2" >> /etc/rc.local
+echo "set -x" >> /etc/rc.local
+echo "iptables -t nat -A PREROUTING -p tcp --dport 443 -j REDIRECT --to-port 3333" >> /etc/rc.local
+echo "iptables -t nat -A PREROUTING -p tcp --dport 80 -j REDIRECT --to-port 3333" >> /etc/rc.local
+echo "su pi -c 'firejail proxychains4 znc -f &'" >> /etc/rc.local
+echo "su pi -c 'proxychains4 thelounge start &'" >> /etc/rc.local
+echo "pushbullet push chrome note "RPi 0 Status" "IRC Client Up"" >> /etc/rc.local
+echo "exit 0" >> /etc/rc.local
+chmod +x /etc/rc.local
+
+# Fix ssh then do this:
+sudo sed -ri 's/#?PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config
+
+#Not sure to add knockd or not
